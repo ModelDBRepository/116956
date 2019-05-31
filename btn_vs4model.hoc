@@ -1,0 +1,93 @@
+/*
+Model that tries to mimic the VS model illustrated in the paper by Borst and Haag (1996,1997,1999)
+
+Executing this model will produce a figure similar to fig 10 from Haag 1997.
+
+Created by B. Torben-Nielsen (TENU @ OIST) and Ted Carnevale
+2009-01-20
+*/
+
+load_file("nrngui.hoc")
+
+/* model specification
+for the morphology we took 72Vs4. (http://neuromorpho.org/neuroMorpho/neuron_info.jsp?neuron_name=72vs4)
+*/
+load_file("inverse_vgated_noclamp.ses")
+
+// The model is created with the cell builder loaded through the session. However, for certainty we load the lastest model in the cell builder and re-assign some critical properties
+
+CellBuild[0].continuous = 0
+CellBuild[0].cexport()
+
+forall {
+  e_pas=0
+  // for the sections with vgated channels
+  if (ismembrane("emdna")) {
+    ena = 100
+    ek = -20
+  }
+}
+
+
+// instrumentation, initialization, and run control
+
+objref ccl
+
+dend[504] {
+  ccl = new IClamp(0.1666)
+  ccl.del=20
+  ccl.dur=60
+}
+
+
+v_init=0
+MAKE_VREST_UNIFORM=0
+
+proc init() {
+  // the ina-dependent k current requires finitialize() to be called twice
+  // the first pass initializes ina,
+  // and the second pass ensures that ina affects ik properly
+  finitialize(v_init)
+  finitialize(v_init)
+  if (MAKE_VREST_UNIFORM == 1) {
+    // assume that membrane is either completely passive
+    // or that it has ina and ik in addition to pas
+    forall if (ismembrane("emdna")) {
+      e_pas = (ina + ik + g_pas*v_init)/g_pas
+    } else {
+      e_pas = v_init
+    }
+    if (cvode.active()) {
+      cvode.re_init()
+    } else {
+      fcurrent()
+    }
+    frecord_init()
+  }
+  if (MAKE_VREST_UNIFORM == 0) {
+  	forall e_pas = v_init
+  }
+}
+
+objref g
+g = Graph[1] // Graph[1] was created by the ses file loaded above
+
+proc fig10e() { local i
+  g.exec_menu("Erase")
+  for i = -6, 6 {
+    print "i: ", i, " (nA)"
+    ccl.amp = i
+    run()
+    g.exec_menu("Keep Lines") // toggle on & off to keep this trace
+    g.exec_menu("Keep Lines")
+  }
+  ccl.amp = 0 // in case users want to create their own IClamp
+    // and explore the model
+  print "done"
+}
+
+xpanel("Resting potential")
+xstatebutton("Force uniform resting potential",&MAKE_VREST_UNIFORM)
+xbutton("Fig. 10e", "fig10e()")
+xbutton("Stop", "end()")
+xpanel(292,511)
